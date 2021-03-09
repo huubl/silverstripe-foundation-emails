@@ -61,7 +61,7 @@ class EmailViewerTask extends BuildTask
         }
 
         if ($force_theme) {
-            Config::inst()->update(FoundationEmails::class, 'theme', $force_theme);
+            Config::modify()->set(FoundationEmails::class, 'theme', $force_theme);
         }
         if ($locale) {
             i18n::set_locale($locale);
@@ -172,7 +172,7 @@ class EmailViewerTask extends BuildTask
                 $result = $e->send();
                 echo '<hr/>';
                 if ($result) {
-                    echo '<span style="color:green">Email sent</span>';
+                    echo '<span style="color:green">Email sent : ' . json_encode($result) . '</span>';
                 } else {
                     echo '<span style="color:red">Failed to send email</span>';
                 }
@@ -197,14 +197,16 @@ class EmailViewerTask extends BuildTask
      */
     protected function inlineContent($body)
     {
-        if (!class_exists("\\Pelago\\Emogrifier")) {
+        if (!class_exists(\Pelago\Emogrifier\CssInliner::class)) {
             throw new Exception("You must run composer require pelago/emogrifier");
         }
-        $emogrifier = new \Pelago\Emogrifier();
-        $emogrifier->setHtml($body);
-        $emogrifier->disableInvisibleNodeRemoval();
-        $emogrifier->enableCssToHtmlMapping();
-        return $emogrifier->emogrify();
+        $domDocument = \Pelago\Emogrifier\CssInliner::fromHtml($body)->inlineCss()->getDomDocument();
+
+        \Pelago\Emogrifier\HtmlProcessor\HtmlPruner::fromDomDocument($domDocument)->removeElementsWithDisplayNone();
+        $html = \Pelago\Emogrifier\HtmlProcessor\CssToAttributeConverter::fromDomDocument($domDocument)
+            ->convertCssToVisualAttributes()->render();
+
+        return $html;
     }
 
     /**
